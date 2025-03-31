@@ -3,6 +3,7 @@ Robot controller definition
 Complete controller including SLAM, planning, path following
 """
 import numpy as np
+import random
 
 from place_bot.entities.robot_abstract import RobotAbstract
 from place_bot.entities.odometer import OdometerParams
@@ -61,7 +62,14 @@ class MyRobotSlam(RobotAbstract):
         self.tiny_slam.compute()
 
         # Compute new command speed to perform obstacle avoidance
-        command = reactive_obst_avoid(self.lidar())
+        command = reactive_obst_avoid(self.lidar(), self.counter)
+
+        if command["rotation"] > 0 and self.counter == 0:
+            self.counter = random.randint(0, 10)
+        elif command["rotation"] > 0 and self.counter != 0:
+            self.counter -= 1
+
+
         return command
 
     def control_tp2(self):

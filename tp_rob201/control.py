@@ -4,16 +4,26 @@ import random
 import numpy as np
 
 
-def reactive_obst_avoid(lidar):
+def reactive_obst_avoid(lidar, counter):
     """
     Simple obstacle avoidance
     lidar : placebot object with lidar data
     """
     # TODO for TP1
+    # default speed
+    speed = 0.1
 
     laser_dist = lidar.get_sensor_values()
-    speed = 0.0
-    rotation_speed = 0.0
+
+    is_close = laser_dist[180] < 60 or laser_dist[150] < 60 or laser_dist[30] < 60
+
+    # see if the front part of the car is close to the wall (or was already close)
+    if is_close or counter > 0:
+        speed = 0
+        # randomly choses the side to turn
+        rotation_speed = random.randint(0, 1)            
+    else:
+        rotation_speed = 0
 
     command = {"forward": speed,
                "rotation": rotation_speed}
