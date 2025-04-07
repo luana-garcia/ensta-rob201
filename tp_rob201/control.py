@@ -30,6 +30,41 @@ def reactive_obst_avoid(lidar, counter):
 
     return command
 
+def calculate_grad_attr(current_pose, goal_pose, K_goal = 1):
+    d_min = np.linalg.norm(goal_pose[:2] - current_pose[:2])
+    grad_attr = (K_goal / d_min) * (goal_pose[:2] - current_pose[:2])
+    return grad_attr
+
+def compute_grad_poten_repul(current_pose, goal_pose, K_goal = 1):
+    d_min = np.linalg.norm(goal_pose[:2] - current_pose[:2])
+    grad_attr = (K_goal / d_min) * (goal_pose[:2] - current_pose[:2])
+    return grad_attr
+
+def compute_repulsive_gradient(lidar, current_pose, d_safe=60, K_obs=800):
+    distances = lidar.get_sensor_values()
+    angles = lidar.get_ray_angles()
+
+    valid = (distances > 5.0) & (distances < 300.0)
+    distances = distances[valid]
+    angles = angles[valid]
+
+    grad_rep = np.zeros(2)
+    x, y, theta = current_pose
+
+    for d, a in zip(distances, angles):
+        if d < d_safe:
+            obs_x = x + d * np.cos(theta + a)
+            obs_y = y + d * np.sin(theta + a)
+            q_obs = np.array([obs_x, obs_y])
+            q = np.array([x, y])
+            delta = q - q_obs
+            dist = np.linalg.norm(delta)
+
+            if dist > 1e-3:
+                repulsion = K_obs * (1.0/dist - 1.0/d_safe) * (1.0 / dist**3) * delta
+                grad_rep += repulsion
+
+    return grad_rep
 
 def potential_field_control(lidar, current_pose, goal_pose):
     """
@@ -42,8 +77,26 @@ def potential_field_control(lidar, current_pose, goal_pose):
     on initial pose, x forward, y on left)
     """
     # TODO for TP2
+    speed = 0.1
+    speed_rot = 0
 
-    command = {"forward": 0,
-               "rotation": 0}
+    grad_attr = calculate_grad_attr(current_pose, goal_pose)
+    grad_repuls = compute_repulsive_gradient(lidar, current_pose)
+    grad_total = grad_attr + grad_repuls
+
+    if(grad_attr[0] < 0):
+        speed = 0
+        speed_rot = 0
+    else:
+        angle_to_goal = np.arctan2(grad_total[1], grad_total[0])
+        angle_diff = angle_to_goal - current_pose[2]
+        angle_diff = np.arctan2(np.sin(angle_diff), np.cos(angle_diff))
+
+        speed_rot = np.clip(2.0 * angle_diff, -1.0, 1.0)
+
+        print(f'{grad_total[0]:.2f} {grad_total[1]:.2f}')
+
+    command = {"forward": speed,
+               "rotation": speed_rot}
 
     return command
