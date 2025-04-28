@@ -7,3 +7,5 @@ place-bot @ git+https://github.com/emmanuel-battesti/place-bot.git@main#egg=plac
 # -e /home/battesti/projetRobotMobile/place-bot
 # place-bot
 
+# conda install -c conda-forge pyglet
+# conda install -c conda-forge mesa

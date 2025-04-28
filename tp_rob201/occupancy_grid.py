@@ -7,7 +7,10 @@ import pickle
 
 import cv2
 import numpy as np
-from matplotlib import pyplot as plt
+
+import matplotlib
+matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
 
 VIDEO_OUT = False
 
@@ -165,7 +168,6 @@ class OccupancyGrid:
         using opencv (faster than the matplotlib version)
         robot_pose : [x, y, theta] nparray, corrected robot pose
         """
-
         img = cv2.flip(self.occupancy_map.T, 0)
         img = img - img.min()
         img = img / img.max() * 255
@@ -190,16 +192,19 @@ class OccupancyGrid:
 
         pt1_x, pt1_y = self.conv_world_to_map(robot_pose[0], robot_pose[1])
 
-        # print("robot_pose", robot_pose)
-        pt1 = (int(pt1_x), self.y_max_map - int(pt1_y))
-        pt2 = (int(pt2_x), self.y_max_map - int(pt2_y))
-        cv2.arrowedLine(img=img_color, pt1=pt1, pt2=pt2,
-                        color=(0, 0, 255), thickness=2)
-        cv2.imshow("map slam", img_color)
-        if VIDEO_OUT:
-            self.cv_out.write(img_color)
+        try:
+            pt1 = (int(pt1_x), self.y_max_map - int(pt1_y))
+            pt2 = (int(pt2_x), self.y_max_map - int(pt2_y))
+            cv2.arrowedLine(img=img_color, pt1=pt1, pt2=pt2,
+                            color=(0, 0, 255), thickness=2)
+            cv2.imshow("map slam", img_color)
+            if VIDEO_OUT:
+                self.cv_out.write(img_color)
 
-        cv2.waitKey(1)
+            cv2.waitKey(1)
+        except Exception as e:
+            print(f"Display error (non-critical): {str(e)}")
+            cv2.destroyAllWindows()
 
     def save(self, filename):
         """

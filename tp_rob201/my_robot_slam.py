@@ -78,7 +78,17 @@ class MyRobotSlam(RobotAbstract):
         Main control function with full SLAM, random exploration and path planning
         """
         pose = self.odometer_values()
-        goal = [450,100,0]
+        goal = [-900,0,0]
+
+        self.tiny_slam.update_map(lidar=self.lidar(), pose=pose)
+
+
+        if self.counter == 30:
+            self.counter = self.counter - 1
+        else:
+            self.occupancy_grid.display_cv(pose, goal)
+            self.counter = 30        
+        
 
         # Compute new command speed to perform obstacle avoidance
         command = potential_field_control(self.lidar(), pose, goal)

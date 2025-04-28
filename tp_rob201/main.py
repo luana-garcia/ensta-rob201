@@ -8,6 +8,8 @@ from my_robot_slam import MyRobotSlam
 
 from worlds.my_world import MyWorld
 
+# import ipdb; ipdb.set_trace()
+
 if __name__ == '__main__':
     lidar_params = LidarParams()
     lidar_params.noise_enable = True
@@ -25,7 +27,7 @@ if __name__ == '__main__':
     # Using shaders allows you to take advantage of the GPU's computing power. Occasionally, on certain machines,
     # notably Windows and macOS, the semantic sensor and lidar may behave in unexpected or aberrant ways.
     # In such cases, you need to disable the shaders.
-    use_shaders = True
+    use_shaders = False
 
     my_robot = MyRobotSlam(lidar_params=lidar_params,
                            odometer_params=odometer_params)

@@ -31,9 +31,10 @@ def reactive_obst_avoid(lidar, counter):
     return command
 
 def calculate_grad_attr(current_pose, goal_pose, K_goal = 1):
-    d_min = np.linalg.norm(goal_pose[:2] - current_pose[:2])
-    grad_attr = (K_goal / d_min) * (goal_pose[:2] - current_pose[:2])
-    return grad_attr
+    vec_to_goal = goal_pose[:2] - current_pose[:2]
+    dist_to_goal = np.linalg.norm(vec_to_goal)
+    grad_attr = (K_goal / dist_to_goal) * (vec_to_goal)
+    return dist_to_goal, grad_attr
 
 def compute_grad_poten_repul(current_pose, goal_pose, K_goal = 1):
     d_min = np.linalg.norm(goal_pose[:2] - current_pose[:2])
@@ -80,21 +81,29 @@ def potential_field_control(lidar, current_pose, goal_pose):
     speed = 0.1
     speed_rot = 0
 
-    grad_attr = calculate_grad_attr(current_pose, goal_pose)
-    grad_repuls = compute_repulsive_gradient(lidar, current_pose)
-    grad_total = grad_attr + grad_repuls
+    max_speed = 0.3    # Maximum forward speed
+    max_rot = 1.0      # Maximum rotation speed
 
-    if(grad_attr[0] < 0):
+    dist_to_goal, grad_attr = calculate_grad_attr(current_pose, goal_pose)
+
+    print(dist_to_goal)
+    if dist_to_goal < 6.0:
         speed = 0
         speed_rot = 0
     else:
+        grad_repuls = compute_repulsive_gradient(lidar, current_pose, d_safe=50)
+        grad_total = grad_attr + grad_repuls
+
         angle_to_goal = np.arctan2(grad_total[1], grad_total[0])
         angle_diff = angle_to_goal - current_pose[2]
         angle_diff = np.arctan2(np.sin(angle_diff), np.cos(angle_diff))
 
-        speed_rot = np.clip(2.0 * angle_diff, -1.0, 1.0)
+        speed = max_speed * np.clip(dist_to_goal, 0.0, 1.0)  # Slow down when close
+        speed_rot = np.clip(2.0 * angle_diff, -max_rot, max_rot)
 
-        print(f'{grad_total[0]:.2f} {grad_total[1]:.2f}')
+        # If we're facing the wrong way, first rotate before moving forward
+        if abs(angle_diff) > np.pi/4:
+            speed = 0.0
 
     command = {"forward": speed,
                "rotation": speed_rot}
