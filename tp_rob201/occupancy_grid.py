@@ -70,6 +70,39 @@ class OccupancyGrid:
             y_world = y_world.astype(float)
 
         return x_world, y_world
+    
+    def obstacle_behind_wall(self, pose, distance_check=0.4, distance_behind=1.0):
+        """
+        Verifica se há um obstáculo mapeado atrás de uma parede que está em frente ao robô.
+
+        pose : [x, y, theta] posição do robô no mundo
+        distance_check : distância para considerar que há uma parede próxima (em metros)
+        distance_behind : distância adicional para verificar presença de obstáculo além da parede
+
+        Retorna: True se parede e obstáculo forem detectados, False caso contrário
+        """
+        from math import cos, sin
+
+        # Ponto diretamente à frente (onde se espera a parede)
+        x_wall = pose[0] + distance_check * cos(pose[2])
+        y_wall = pose[1] + distance_check * sin(pose[2])
+        x_map, y_map = self.conv_world_to_map(x_wall, y_wall)
+
+        # Ponto além da parede
+        x_obs = pose[0] + (distance_check + distance_behind) * cos(pose[2])
+        y_obs = pose[1] + (distance_check + distance_behind) * sin(pose[2])
+        x_map_obs, y_map_obs = self.conv_world_to_map(x_obs, y_obs)
+
+        if not (0 <= x_map < self.occupancy_map.shape[0] and 0 <= y_map < self.occupancy_map.shape[1]):
+            return False
+        if not (0 <= x_map_obs < self.occupancy_map.shape[0] and 0 <= y_map_obs < self.occupancy_map.shape[1]):
+            return False
+
+        # Valores altos são considerados obstáculos (ex: > 0.5)
+        is_wall = self.occupancy_map[x_map, y_map] > 0.5
+        is_behind_obstacle = self.occupancy_map[x_map_obs, y_map_obs] > 0.5
+
+        return is_wall and is_behind_obstacle
 
     def add_value_along_line(self, x_0: float, y_0: float, x_1: float, y_1: float, val):
         """
@@ -236,3 +269,19 @@ class OccupancyGrid:
         filename : base name (without extension) of file on disk
         """
         # TODO
+
+    def get_mapped_area_percentage(self):
+        """
+        Calculate the percentage of the map that has been explored
+        Returns a float between 0 and 100 representing the percentage of mapped area
+        """
+        # Count cells that have been updated (non-zero values)
+        mapped_cells = np.count_nonzero(self.occupancy_map)
+        
+        # Calculate total number of cells
+        total_cells = self.occupancy_map.size
+        
+        # Calculate percentage
+        mapped_percentage = (mapped_cells / total_cells) * 100
+        
+        return mapped_percentage

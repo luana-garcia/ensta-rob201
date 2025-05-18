@@ -30,18 +30,13 @@ def reactive_obst_avoid(lidar, counter):
 
     return command
 
-def calculate_grad_attr(current_pose, goal_pose, K_goal = 1):
+def calculate_grad_attr(current_pose, goal_pose, K_goal):
     vec_to_goal = goal_pose[:2] - current_pose[:2]
     dist_to_goal = np.linalg.norm(vec_to_goal)
     grad_attr = (K_goal / dist_to_goal) * (vec_to_goal)
     return dist_to_goal, grad_attr
 
-def compute_grad_poten_repul(current_pose, goal_pose, K_goal = 1):
-    d_min = np.linalg.norm(goal_pose[:2] - current_pose[:2])
-    grad_attr = (K_goal / d_min) * (goal_pose[:2] - current_pose[:2])
-    return grad_attr
-
-def compute_repulsive_gradient(lidar, current_pose, d_safe=60, K_obs=800):
+def compute_repulsive_gradient(lidar, current_pose, d_safe, K_obs):
     distances = lidar.get_sensor_values()
     angles = lidar.get_ray_angles()
 
@@ -67,7 +62,7 @@ def compute_repulsive_gradient(lidar, current_pose, d_safe=60, K_obs=800):
 
     return grad_rep
 
-def potential_field_control(lidar, current_pose, goal_pose):
+def potential_field_control(lidar, current_pose, goal_pose, isStuck=False):
     """
     Control using potential field for goal reaching and obstacle avoidance
     lidar : placebot object with lidar data
@@ -78,20 +73,46 @@ def potential_field_control(lidar, current_pose, goal_pose):
     on initial pose, x forward, y on left)
     """
     # TODO for TP2
+    K_goal = 1.2
+    d_safe=60
+    K_obs=500
+
     speed = 0.1
     speed_rot = 0
 
-    max_speed = 0.3    # Maximum forward speed
-    max_rot = 1.0      # Maximum rotation speed
+    max_speed = 0.2    # Maximum forward speed
+    max_rot = 0.4      # Maximum rotation speed
 
-    dist_to_goal, grad_attr = calculate_grad_attr(current_pose, goal_pose)
+    # Special constants for stuck recovery
+    stuck_speed = -0.2  # Move backward when stuck
+    stuck_rot = 0.5     # Rotation speed when stuck
+    recovery_time = 20  # Time steps to maintain recovery behavior
 
-    print(dist_to_goal)
+    # Stuck recovery behavior
+    if isStuck:
+        # Count how long we've been in recovery mode
+        if not hasattr(potential_field_control, 'recovery_counter'):
+            potential_field_control.recovery_counter = 0
+            print("Initiating stuck recovery maneuver")
+        
+        if potential_field_control.recovery_counter < recovery_time:
+            potential_field_control.recovery_counter += 1
+            return {
+                "forward": stuck_speed,
+                "rotation": stuck_rot * (-1 if potential_field_control.recovery_counter % 2 else 1)
+            }
+        else:
+            # Reset after recovery period
+            potential_field_control.recovery_counter = 0
+            isStuck = False
+
+    dist_to_goal, grad_attr = calculate_grad_attr(current_pose, goal_pose, K_goal)
+
     if dist_to_goal < 6.0:
         speed = 0
         speed_rot = 0
     else:
-        grad_repuls = compute_repulsive_gradient(lidar, current_pose, d_safe=50)
+        grad_repuls = compute_repulsive_gradient(lidar, current_pose, d_safe, K_obs)
         grad_total = grad_attr + grad_repuls
 
         angle_to_goal = np.arctan2(grad_total[1], grad_total[0])
