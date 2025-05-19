@@ -41,16 +41,7 @@ class MyRobotSlam(RobotAbstract):
                                             y_min=-(size_area[1] / 2 + robot_position[1]),
                                             y_max=size_area[1] / 2 - robot_position[1],
                                             resolution=2)
-
-        self.tiny_slam = TinySlam(self.occupancy_grid)
-        self.planner = Planner(self.occupancy_grid)
-
-        # Paramètres optimisés
-        self.final_goal = np.array([-700,-200,0])  # Goal final
-        self.waypoints = []
-        self.current_goal_index = 0
-        self.goal_reached_threshold = 50  # mm
-
+        
         self.fixed_waypoints = np.array([
             [50, -200, 0],
             [50, -500, 0],
@@ -62,19 +53,36 @@ class MyRobotSlam(RobotAbstract):
             [-200, -250, 0],
             [-400, -100, 0],
             [-500, -100, 0],
+            [-500, -50, 0],
             [-200, 50, 0],
             [-400, -50, 0],
             [-500, -50, 0],
             [-700, -20, 0],
             [-800, -20, 0],
             [-800, -100, 0],
-            [-700, -150, 0],
-            [-800, -150, 0],
-            [-800, -350, 0],
-            [-750, -250, 0],
-            [-850, -50, 0]
+            [-650, -100, 0],
+            [-800, -100, 0],
+            [-850, -350, 0],
+            [-800, -250, 0],
+            [-900, -300, 0],
+            [-900, -50, 0]
         ])
         
+        if self.occupancy_grid.load("map"):  # Carrega de mapa_salvo.p
+            self.current_goal_index = len(self.fixed_waypoints)
+            self.need_to_save_map = False
+        else:
+            self.current_goal_index = 0
+            self.need_to_save_map = True
+
+        self.tiny_slam = TinySlam(self.occupancy_grid)
+        self.planner = Planner(self.occupancy_grid)
+
+        # Paramètres optimisés
+        self.final_goal = np.array([-700,-200,0])  # Goal final
+        self.waypoints = []
+        
+        self.goal_reached_threshold = 50  # mm
         
         # Parâmetros de localização melhorados
         self.score_history = []  # Histórico de scores
@@ -99,6 +107,12 @@ class MyRobotSlam(RobotAbstract):
         self.last_position = None
         self.min_movement_threshold = 5  # mm
 
+        self.iteration_count = 0
+        self.path = []
+        self.path_following = False
+        self.return_goal = np.array([0, 0, 0])
+        self.exploration_mode = True
+        self.reached_final_goal = False
 
     def is_robot_stuck(self, pose):
         if pose is None:
@@ -318,50 +332,6 @@ class MyRobotSlam(RobotAbstract):
                 return self.final_goal
         
         return current_goal
-    
-    def get_adjusted_waypoint(self, current_goal, pose):
-        """Gera um waypoint ajustado quando o robô está preso"""
-        if not self.is_robot_stuck(pose):
-            return current_goal  # Retorna o waypoint original se não estiver preso
-        
-        print("Ajustando waypoint para desatascar o robô...")
-        
-        # Vetor direção original
-        direction = current_goal[:2] - pose[:2]
-        dist_to_goal = np.linalg.norm(direction)
-        
-        if dist_to_goal > 0:
-            direction = direction / dist_to_goal
-            
-            # Gera um desvio perpendicular (90° à esquerda ou direita)
-            perpendicular = np.array([-direction[1], direction[0]])
-            if np.random.rand() > 0.5:
-                perpendicular = -perpendicular  # Aleatoriza o lado
-                
-            # Magnitude do desvio (20-30% da distância original)
-            deviation_dist = dist_to_goal * 0.25
-            new_position = pose[:2] + perpendicular * deviation_dist
-            
-            # Limita às fronteiras do mapa
-            x_min = self.occupancy_grid.x_min_world + 100
-            x_max = self.occupancy_grid.x_max_world - 100
-            y_min = self.occupancy_grid.y_min_world + 100
-            y_max = self.occupancy_grid.y_max_world - 100
-            
-            new_position[0] = np.clip(new_position[0], x_min, x_max)
-            new_position[1] = np.clip(new_position[1], y_min, y_max)
-            
-            # Cria novo waypoint temporário
-            adjusted_goal = np.array([new_position[0], new_position[1], current_goal[2]])
-            print(f"Waypoint ajustado de {current_goal[:2]} para {adjusted_goal[:2]}")
-            
-            # Reseta o contador de stuck após ajuste
-            self.stuck_counter = 0
-            
-            return adjusted_goal
-        
-        return current_goal
-
 
     def should_update_map(self, pose, current_score):
         # distance_moved = np.linalg.norm(pose[:2] - self.last_pose_for_map_update[:2])
@@ -376,7 +346,7 @@ class MyRobotSlam(RobotAbstract):
         else:
             score_normalizado = 1  # Permissivo no início
 
-        threshold_fixo = 0.8  # Ajuste conforme necessário
+        threshold_fixo = 0.85  # Ajuste conforme necessário
 
         good_score = score_normalizado > threshold_fixo
         # moved_enough = distance_moved > 5
@@ -387,6 +357,24 @@ class MyRobotSlam(RobotAbstract):
             print(f"Localisation incertaine (score norm: {score_normalizado:.2f} < {threshold_fixo:.2f})")
 
         return (good_score and not_rotating) or initial_update
+    
+    def follow_path(self, pose):
+        if not self.path:
+            print("No path to follow!")
+            return {"forward": 0, "rotation": 0}
+        current_goal = self.path[0]
+        dist_to_goal = np.linalg.norm(pose[:2] - current_goal[:2])
+        if dist_to_goal < self.goal_reached_threshold:
+            self.path.pop(0)
+            if not self.path:
+                print("Reached path destination!")
+                return {"forward": 0, "rotation": 0}
+            current_goal = self.path[0]
+            print(f"Moving to next path waypoint at ({current_goal[0]:.1f}, {current_goal[1]:.1f})")
+        is_stuck = self.is_robot_stuck(pose)
+        command = potential_field_control(self.lidar(), pose, current_goal, isStuck=is_stuck)
+        return command
+        
 
     def control(self):
         """
@@ -421,39 +409,113 @@ class MyRobotSlam(RobotAbstract):
         mapped_percentage = self.occupancy_grid.get_mapped_area_percentage()
         
         # Condição de parada
-        if mapped_percentage >= 80.0 or self.current_goal_index >= len(self.fixed_waypoints):
-            return {"forward": 0.0, "rotation": 0.0}
+        if mapped_percentage >= 46 and self.current_goal_index+1 >= len(self.fixed_waypoints):
+            if self.need_to_save_map:
+                self.occupancy_grid.save("map")
+                self.need_to_save_map = False
+            current_goal = self.final_goal
+            self.exploration_mode = False
 
-        # Obter waypoint atual garantindo que está dentro dos limites
-        current_goal = self.fixed_waypoints[min(self.current_goal_index, len(self.fixed_waypoints)-1)]
+        if self.exploration_mode:
 
-        is_stuck = self.is_robot_stuck(pose)
+            # Obter waypoint atual garantindo que está dentro dos limites
+            current_goal = self.fixed_waypoints[min(self.current_goal_index, len(self.fixed_waypoints)-1)]
+
+            is_stuck = self.is_robot_stuck(pose)
+            
+            # Atualizar goal se necessário
+            dist_to_goal = np.linalg.norm(pose[:2] - current_goal[:2])
+            if dist_to_goal < self.goal_reached_threshold and self.current_goal_index < len(self.fixed_waypoints)-1:
+                self.current_goal_index += 1
+                current_goal = self.fixed_waypoints[self.current_goal_index]
+                print(f"Alcançado waypoint {self.current_goal_index}, indo para próximo")
+
+            # Localização
+            current_score = self.tiny_slam.localise(self.lidar(), pose)
+            self.score_history.append(current_score)
+            if len(self.score_history) > self.max_history:
+                self.score_history.pop(0)
+
+            # Atualização do mapa (somente se condições forem favoráveis)
+            if self.should_update_map(pose, current_score):
+                self.corrected_pose = self.tiny_slam.get_corrected_pose(pose)
+                self.tiny_slam.update_map(self.lidar(), self.corrected_pose)
+                self.last_pose_for_map_update = pose.copy()
+            
+            # Detecção de stuck
+            if is_stuck:
+                print("Robô preso! Executando manobra de recuperação...")
+                command = potential_field_control(self.lidar(), pose, current_goal, isStuck=True)
+            else:
+                command = potential_field_control(self.lidar(), pose, current_goal)
         
-        # Atualizar goal se necessário
-        dist_to_goal = np.linalg.norm(pose[:2] - current_goal[:2])
-        if dist_to_goal < self.goal_reached_threshold and self.current_goal_index < len(self.fixed_waypoints)-1:
-            self.current_goal_index += 1
-            current_goal = self.fixed_waypoints[self.current_goal_index]
-            print(f"Alcançado waypoint {self.current_goal_index}, indo para próximo")
+        # Phase 3: Plan and follow path to final_goal
+        if not self.exploration_mode and not self.reached_final_goal and not self.path_following:
+            print("Exploration complete! Planning path to final goal (-700, -200, 0)")
+            self.path = self.planner.plan(pose, self.final_goal)
+            if not self.path:
+                print("No path found to final goal! Continuing exploration...")
+                self.exploration_mode = True
+                self.iteration_count -= 1
+                current_goal = self.exploration_mode(pose)
+                command = potential_field_control(self.lidar(), pose, current_goal)
+                self.occupancy_grid.display_cv(pose, current_goal)
+                return command
+            self.path_following = True
+            print(f"Path planned to final goal with {len(self.path)} waypoints")
+            traj_array = np.array([pose[:2] for pose in self.path]).T
+            self.occupancy_grid.display_cv(pose, self.final_goal, traj=traj_array)
+            return self.follow_path(pose)
 
-        # Localização
-        current_score = self.tiny_slam.localise(self.lidar(), pose)
-        self.score_history.append(current_score)
-        if len(self.score_history) > self.max_history:
-            self.score_history.pop(0)
+        # Phase 4: Check if final_goal reached and plan path to origin
+        if self.path_following and not self.reached_final_goal:
+            dist_to_final = np.linalg.norm(pose[:2] - self.final_goal[:2])
+            if dist_to_final < self.goal_reached_threshold or not self.path:
+                print("Reached final goal! Planning path to origin (0, 0, 0)")
+                self.reached_final_goal = True
+                self.path_following = False
+                self.path = self.planner.plan(pose, self.return_goal)
+                if not self.path:
+                    print("No path found to origin! Stopping robot.")
+                    self.occupancy_grid.save("final_map")
+                    return {"forward": 0, "rotation": 0}
+                print(f"Path planned to origin with {len(self.path)} waypoints")
+                traj_array = np.array([pose[:2] for pose in self.path]).T
+                if traj_array.shape[0] == 2:  # Ensure valid 2D array
+                    self.occupancy_grid.display_cv(pose, self.return_goal, traj=traj_array)
+                else:
+                    self.occupancy_grid.display_cv(pose, self.return_goal)
+                return self.follow_path(pose)
+            command = self.follow_path(pose)
+            if self.path and len(self.path) > 0:
+                traj_array = np.array([pose[:2] for pose in self.path]).T
+                if traj_array.shape[0] == 2:  # Ensure valid 2D array
+                    self.occupancy_grid.display_cv(pose, self.final_goal, traj=traj_array)
+                else:
+                    self.occupancy_grid.display_cv(pose, self.final_goal)
+            else:
+                self.occupancy_grid.display_cv(pose, self.final_goal)
+            return command
 
-        # Atualização do mapa (somente se condições forem favoráveis)
-        if self.should_update_map(pose, current_score):
-            self.corrected_pose = self.tiny_slam.get_corrected_pose(pose)
-            self.tiny_slam.update_map(self.lidar(), self.corrected_pose)
-            self.last_pose_for_map_update = pose.copy()
-        
-        # Detecção de stuck
-        if is_stuck:
-            print("Robô preso! Executando manobra de recuperação...")
-            command = potential_field_control(self.lidar(), pose, current_goal, isStuck=True)
-        else:
-            command = potential_field_control(self.lidar(), pose, current_goal)
+        # Phase 5: Follow path to origin
+        if self.reached_final_goal:
+            dist_to_origin = np.linalg.norm(pose[:2] - self.return_goal[:2])
+            if dist_to_origin < self.goal_reached_threshold:
+                print("Reached origin! Stopping robot.")
+                self.occupancy_grid.save("final_map")
+                return {"forward": 0, "rotation": 0}
+            if not self.path_following:
+                self.path_following = True
+            command = self.follow_path(pose)
+            if self.path and len(self.path) > 0:
+                traj_array = np.array([pose[:2] for pose in self.path]).T
+                if traj_array.shape[0] == 2:  # Ensure valid 2D array
+                    self.occupancy_grid.display_cv(pose, self.return_goal, traj=traj_array)
+                else:
+                    self.occupancy_grid.display_cv(pose, self.return_goal)
+            else:
+                self.occupancy_grid.display_cv(pose, self.return_goal)
+            return command
 
         # Exibir mapa e waypoint atual
         self.occupancy_grid.display_cv(pose, current_goal)

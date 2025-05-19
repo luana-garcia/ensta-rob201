@@ -269,6 +269,43 @@ class OccupancyGrid:
         filename : base name (without extension) of file on disk
         """
         # TODO
+        try:
+            with open(filename + ".p", "rb") as fid:
+                data = pickle.load(fid)
+                
+                # Verifica se todos os campos necessários estão presentes
+                required_fields = ['occupancy_map', 'resolution', 
+                                'x_min_world', 'x_max_world',
+                                'y_min_world', 'y_max_world']
+                
+                if not all(field in data for field in required_fields):
+                    raise ValueError("O arquivo de mapa está corrompido ou incompleto")
+                
+                # Atualiza os atributos da classe com os valores carregados
+                self.occupancy_map = data['occupancy_map']
+                self.resolution = data['resolution']
+                self.x_min_world = data['x_min_world']
+                self.x_max_world = data['x_max_world']
+                self.y_min_world = data['y_min_world']
+                self.y_max_world = data['y_max_world']
+                
+                # Recalcula os limites do mapa em pixels
+                self.x_max_map, self.y_max_map = self.conv_world_to_map(
+                    self.x_max_world, self.y_max_world)
+                
+                print(f"Mapa carregado com sucesso de {filename}.p")
+                print(f"Resolução: {self.resolution} m/pixel")
+                print(f"Dimensões do mundo: x=[{self.x_min_world:.1f}, {self.x_max_world:.1f}] m, "
+                    f"y=[{self.y_min_world:.1f}, {self.y_max_world:.1f}] m")
+                print(f"Dimensões do mapa: {self.occupancy_map.shape[0]}x{self.occupancy_map.shape[1]} pixels")
+
+            return True
+                
+        except FileNotFoundError:
+            print(f"Arquivo {filename}.p não encontrado")
+            return False
+        except Exception as e:
+            raise ValueError(f"Erro ao carregar o mapa: {str(e)}")
 
     def get_mapped_area_percentage(self):
         """

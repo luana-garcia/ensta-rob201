@@ -73,9 +73,9 @@ def potential_field_control(lidar, current_pose, goal_pose, isStuck=False):
     on initial pose, x forward, y on left)
     """
     # TODO for TP2
-    K_goal = 1.2
+    K_goal = 1.0
     d_safe=60
-    K_obs=500
+    K_obs=400
 
     speed = 0.1
     speed_rot = 0
