@@ -1,4 +1,4 @@
-""" A set of robotics control functions """
+""" Un ensemble de fonctions de contrôle pour la robotique """
 
 import random
 import numpy as np
@@ -6,21 +6,21 @@ import numpy as np
 
 def reactive_obst_avoid(lidar, counter):
     """
-    Simple obstacle avoidance
-    lidar : placebot object with lidar data
+    Évitement simple des obstacles
+    lidar : objet placebot avec les données du lidar
     """
-    # TODO for TP1
-    # default speed
+    # TODO pour TP1
+    # vitesse par défaut
     speed = 0.1
 
     laser_dist = lidar.get_sensor_values()
 
     is_close = laser_dist[180] < 60 or laser_dist[150] < 60 or laser_dist[30] < 60
 
-    # see if the front part of the car is close to the wall (or was already close)
+    # vérifier si la partie avant du robot est proche du mur (ou l'était déjà)
     if is_close or counter > 0:
         speed = 0
-        # randomly choses the side to turn
+        # choisit aléatoirement le côté vers lequel tourner
         rotation_speed = random.randint(0, 1)            
     else:
         rotation_speed = 0
@@ -64,15 +64,15 @@ def compute_repulsive_gradient(lidar, current_pose, d_safe, K_obs):
 
 def potential_field_control(lidar, current_pose, goal_pose, isStuck=False):
     """
-    Control using potential field for goal reaching and obstacle avoidance
-    lidar : placebot object with lidar data
-    current_pose : [x, y, theta] nparray, current pose in odom or world frame
-    goal_pose : [x, y, theta] nparray, target pose in odom or world frame
-    Notes: As lidar and odom are local only data, goal and gradient will be defined either in
-    robot (x,y) frame (centered on robot, x forward, y on left) or in odom (centered / aligned
-    on initial pose, x forward, y on left)
+    Contrôle utilisant un champ de potentiel pour atteindre l’objectif et éviter les obstacles
+    lidar : objet placebot avec les données du lidar
+    current_pose : [x, y, theta] tableau numpy, position actuelle dans le repère odom ou monde
+    goal_pose : [x, y, theta] tableau numpy, position cible dans le repère odom ou monde
+    Remarques : Comme le lidar et l’odométrie sont des données locales, l’objectif et le gradient
+    seront définis soit dans le repère du robot (x,y) (centré sur le robot, x vers l’avant, y à gauche),
+    soit dans le repère odométrique (centré/aligne sur la pose initiale, x vers l’avant, y à gauche)
     """
-    # TODO for TP2
+    # TODO pour TP2
     K_goal = 1.0
     d_safe=60
     K_obs=400
@@ -80,20 +80,20 @@ def potential_field_control(lidar, current_pose, goal_pose, isStuck=False):
     speed = 0.1
     speed_rot = 0
 
-    max_speed = 0.2    # Maximum forward speed
-    max_rot = 0.4      # Maximum rotation speed
+    max_speed = 0.2    # Vitesse maximale en avant
+    max_rot = 0.4      # Vitesse de rotation maximale
 
-    # Special constants for stuck recovery
-    stuck_speed = -0.2  # Move backward when stuck
-    stuck_rot = 0.5     # Rotation speed when stuck
-    recovery_time = 20  # Time steps to maintain recovery behavior
+    # Constantes spéciales pour la récupération en cas de blocage
+    stuck_speed = -0.2  # Reculer lorsqu'on est bloqué
+    stuck_rot = 0.5     # Vitesse de rotation en mode récupération
+    recovery_time = 20  # Durée (en étapes) du comportement de récupération
 
-    # Stuck recovery behavior
+    # Comportement de récupération en cas de blocage
     if isStuck:
-        # Count how long we've been in recovery mode
+        # Compter combien de temps on reste en mode récupération
         if not hasattr(potential_field_control, 'recovery_counter'):
             potential_field_control.recovery_counter = 0
-            print("Initiating stuck recovery maneuver")
+            print("Manœuvre de récupération enclenchée")
         
         if potential_field_control.recovery_counter < recovery_time:
             potential_field_control.recovery_counter += 1
@@ -102,7 +102,7 @@ def potential_field_control(lidar, current_pose, goal_pose, isStuck=False):
                 "rotation": stuck_rot * (-1 if potential_field_control.recovery_counter % 2 else 1)
             }
         else:
-            # Reset after recovery period
+            # Réinitialisation après la période de récupération
             potential_field_control.recovery_counter = 0
             isStuck = False
 
@@ -119,10 +119,10 @@ def potential_field_control(lidar, current_pose, goal_pose, isStuck=False):
         angle_diff = angle_to_goal - current_pose[2]
         angle_diff = np.arctan2(np.sin(angle_diff), np.cos(angle_diff))
 
-        speed = max_speed * np.clip(dist_to_goal, 0.0, 1.0)  # Slow down when close
+        speed = max_speed * np.clip(dist_to_goal, 0.0, 1.0)  # Ralentir quand on est proche
         speed_rot = np.clip(2.0 * angle_diff, -max_rot, max_rot)
 
-        # If we're facing the wrong way, first rotate before moving forward
+        # Si on est mal orienté, d’abord tourner avant d’avancer
         if abs(angle_diff) > np.pi/4:
             speed = 0.0
 

@@ -73,24 +73,22 @@ class OccupancyGrid:
     
     def obstacle_behind_wall(self, pose, distance_check=0.4, distance_behind=1.0):
         """
-        Verifica se há um obstáculo mapeado atrás de uma parede que está em frente ao robô.
+        Vérifie s'il y a un obstacle cartographié derrière un mur situé devant le robot.
 
-        pose : [x, y, theta] posição do robô no mundo
-        distance_check : distância para considerar que há uma parede próxima (em metros)
-        distance_behind : distância adicional para verificar presença de obstáculo além da parede
+        pose : [x, y, theta] position du robot dans le monde
+        distance_check : distance pour considérer qu’un mur est proche (en mètres)
+        distance_behind : distance supplémentaire pour vérifier la présence d’un obstacle derrière le mur
 
-        Retorna: True se parede e obstáculo forem detectados, False caso contrário
+        Retourne : True si un mur et un obstacle sont détectés, False sinon
         """
-        from math import cos, sin
-
-        # Ponto diretamente à frente (onde se espera a parede)
-        x_wall = pose[0] + distance_check * cos(pose[2])
-        y_wall = pose[1] + distance_check * sin(pose[2])
+        # Point directement devant (où l'on s'attend à ce qu'il y ait un mur)
+        x_wall = pose[0] + distance_check * np.cos(pose[2])
+        y_wall = pose[1] + distance_check * np.sin(pose[2])
         x_map, y_map = self.conv_world_to_map(x_wall, y_wall)
 
-        # Ponto além da parede
-        x_obs = pose[0] + (distance_check + distance_behind) * cos(pose[2])
-        y_obs = pose[1] + (distance_check + distance_behind) * sin(pose[2])
+        # Point au-delà du mur
+        x_obs = pose[0] + (distance_check + distance_behind) * np.cos(pose[2])
+        y_obs = pose[1] + (distance_check + distance_behind) * np.sin(pose[2])
         x_map_obs, y_map_obs = self.conv_world_to_map(x_obs, y_obs)
 
         if not (0 <= x_map < self.occupancy_map.shape[0] and 0 <= y_map < self.occupancy_map.shape[1]):
@@ -98,11 +96,12 @@ class OccupancyGrid:
         if not (0 <= x_map_obs < self.occupancy_map.shape[0] and 0 <= y_map_obs < self.occupancy_map.shape[1]):
             return False
 
-        # Valores altos são considerados obstáculos (ex: > 0.5)
+        # Des valeurs élevées sont considérées comme des obstacles (ex : > 0.5)
         is_wall = self.occupancy_map[x_map, y_map] > 0.5
         is_behind_obstacle = self.occupancy_map[x_map_obs, y_map_obs] > 0.5
 
         return is_wall and is_behind_obstacle
+
 
     def add_value_along_line(self, x_0: float, y_0: float, x_1: float, y_1: float, val):
         """

@@ -1,6 +1,6 @@
 """
-Robot controller definition
-Complete controller including SLAM, planning, path following
+Définition du contrôleur du robot
+Contrôleur complet incluant SLAM, planification et suivi de trajectoire
 """
 import numpy as np
 import random
@@ -16,24 +16,24 @@ from occupancy_grid import OccupancyGrid
 from planner import Planner
 
 
-# Definition of our robot controller
+# Définition de notre contrôleur de robot
 class MyRobotSlam(RobotAbstract):
-    """A robot controller including SLAM, path planning and path following"""
+    """Un contrôleur de robot incluant SLAM, planification de trajectoire et suivi de trajectoire"""
 
     def __init__(self,
                  lidar_params: LidarParams = LidarParams(),
                  odometer_params: OdometerParams = OdometerParams()):
-        # Passing parameter to parent class
+        # Passage des paramètres à la classe parente
         super().__init__(should_display_lidar=False,
                          lidar_params=lidar_params,
                          odometer_params=odometer_params)
 
-        # step display_counter to deal with init and display
+        # Compteur d'affichage pour gérer l'init et l'affichage
         self.display_counter = 0
 
-        # Init SLAM object
-        # Here we cheat to get an occupancy grid size that's not too large, by using the
-        # robot's starting position and the maximum map size that we shouldn't know.
+        # Initialisation de l'objet SLAM
+        # Ici, on triche pour obtenir une taille de grille d'occupation pas trop grande,
+        # en utilisant la position de départ du robot et la taille maximale de la carte
         size_area = (1400, 1000)
         robot_position = (439.0, 195)
         self.occupancy_grid = OccupancyGrid(x_min=-(size_area[0] / 2 + robot_position[0]),
@@ -68,7 +68,7 @@ class MyRobotSlam(RobotAbstract):
             [-900, -50, 0]
         ])
         
-        if self.occupancy_grid.load("map"):  # Carrega de mapa_salvo.p
+        if self.occupancy_grid.load("map"):  # Charge une carte enregistrée
             self.current_goal_index = len(self.fixed_waypoints)
             self.need_to_save_map = False
         else:
@@ -79,21 +79,21 @@ class MyRobotSlam(RobotAbstract):
         self.planner = Planner(self.occupancy_grid)
 
         # Paramètres optimisés
-        self.final_goal = np.array([-800,-300,0])  # Goal final
+        self.final_goal = np.array([-800,-300,0])  # Objectif final
         self.waypoints = []
         
         self.goal_reached_threshold = 50  # mm
         
-        # Parâmetros de localização melhorados
-        self.score_history = []  # Histórico de scores
-        self.max_history = 50    # Histórico maior para melhor estabilidade
-        self.score_update_interval = 5  # Atualiza threshold mais frequentemente
+        # Paramètres de localisation améliorés
+        self.score_history = []  # Historique des scores
+        self.max_history = 50    # Historique plus long pour meilleure stabilité
+        self.score_update_interval = 5  # Mise à jour plus fréquente du seuil
         self.score_counter = 0
         
-        # Parâmetros de movimento para atualização do mapa
+        # Paramètres de mouvement pour mise à jour de la carte
         self.last_pose_for_map_update = np.array([0, 0, 0])
         self.map_update_counter = 0
-        self.map_update_interval = 3  # Força atualização mais frequentemente
+        self.map_update_interval = 3  # Force une mise à jour plus fréquente
         
         self.corrected_pose = np.array([0, 0, 0])
         self.last_good_score = 0
@@ -118,24 +118,24 @@ class MyRobotSlam(RobotAbstract):
         if pose is None:
             return False
 
-        # Salva posição atual
+        # Sauvegarde de la position actuelle
         current_position = np.array(pose[:2])
 
         if self.occupancy_grid.obstacle_behind_wall(pose):
             self.stuck_counter += 10
-            print("obstaculo atras da PAREDE")
+            print("obstacle derrière un MUR")
 
         if self.last_position is None:
             self.last_position = current_position
             return False
 
-        # Movimento desde a última verificação
+        # Mouvement depuis la dernière vérification
         movement = np.linalg.norm(current_position - self.last_position)
 
         if movement < self.min_movement_threshold:
             self.stuck_counter += 1
         else:
-            self.stuck_counter = 0  # movimento detectado, zera contador
+            self.stuck_counter = 0  # mouvement détecté, réinitialise le compteur
 
         self.last_position = current_position
 
@@ -144,7 +144,6 @@ class MyRobotSlam(RobotAbstract):
             return True
 
         return False
-
     
     # def generate_randomized_zigzag_waypoints(self, grid_resolution=200, noise=50):
     #     """
@@ -310,9 +309,9 @@ class MyRobotSlam(RobotAbstract):
         self.visited_waypoints.add(tuple(waypoint))
 
     def exploration_mode(self, pose):
-        # Verifica se já atingimos todos os waypoints
+        # Vérifie si tous les waypoints ont été atteints
         if self.current_goal_index >= len(self.fixed_waypoints):
-            print("Todos os waypoints fixos foram visitados! Indo para o objetivo final.")
+            print("Tous les waypoints fixes ont été visités ! Direction objectif final.")
             return self.final_goal
         
         current_goal = self.fixed_waypoints[self.current_goal_index]
@@ -320,15 +319,15 @@ class MyRobotSlam(RobotAbstract):
         
         if dist_to_goal < self.goal_reached_threshold:
             self.current_goal_index += 1
-            print(f"Waypoint {self.current_goal_index} de {len(self.fixed_waypoints)} alcançado!")
+            print(f"Waypoint {self.current_goal_index} sur {len(self.fixed_waypoints)} atteint !")
             
-            # Verifica se ainda há waypoints disponíveis
+            # Vérifie s'il reste des waypoints
             if self.current_goal_index < len(self.fixed_waypoints):
                 next_goal = self.fixed_waypoints[self.current_goal_index]
-                print(f"Indo para o próximo waypoint em ({next_goal[0]:.1f}, {next_goal[1]:.1f})")
+                print(f"Aller au prochain waypoint à ({next_goal[0]:.1f}, {next_goal[1]:.1f})")
                 return next_goal
             else:
-                print("Todos os waypoints foram visitados, indo para o objetivo final")
+                print("Tous les waypoints ont été visités, direction objectif final")
                 return self.final_goal
         
         return current_goal
@@ -339,38 +338,38 @@ class MyRobotSlam(RobotAbstract):
         if delta_theta > np.pi:
             delta_theta = 2 * np.pi - delta_theta
 
-        # Normalização do score
+        # Normalisation du score
         if self.score_history:
             mean_score = np.mean(self.score_history[-10:])
-            score_normalizado = current_score / mean_score
+            score_normalisé = current_score / mean_score
         else:
-            score_normalizado = 1  # Permissivo no início
+            score_normalisé = 1  # Tolérant au début
 
-        threshold_fixo = 0.85  # Ajuste conforme necessário
+        seuil_fixe = 0.85  # Ajuster si besoin
 
-        good_score = score_normalizado > threshold_fixo
+        good_score = score_normalisé > seuil_fixe
         # moved_enough = distance_moved > 5
         not_rotating = delta_theta < 0.2
         initial_update = self.map_update_counter < 20
 
         if not good_score:
-            print(f"Localisation incertaine (score norm: {score_normalizado:.2f} < {threshold_fixo:.2f})")
+            print(f"Localisation incertaine (score norm: {score_normalisé:.2f} < {seuil_fixe:.2f})")
 
         return (good_score and not_rotating) or initial_update
     
     def follow_path(self, pose):
         if not self.path:
-            print("No path to follow!")
+            print("Aucun chemin à suivre !")
             return {"forward": 0, "rotation": 0}
         current_goal = self.path[0]
         dist_to_goal = np.linalg.norm(pose[:2] - current_goal[:2])
         if dist_to_goal < self.goal_reached_threshold:
             self.path.pop(0)
             if not self.path:
-                print("Reached path destination!")
+                print("Destination du chemin atteinte !")
                 return {"forward": 0, "rotation": 0}
             current_goal = self.path[0]
-            print(f"Moving to next path waypoint at ({current_goal[0]:.1f}, {current_goal[1]:.1f})")
+            print(f"Aller au prochain point du chemin à ({current_goal[0]:.1f}, {current_goal[1]:.1f})")
         is_stuck = self.is_robot_stuck(pose)
         command = potential_field_control(self.lidar(), pose, current_goal, isStuck=is_stuck)
         return command
@@ -378,18 +377,18 @@ class MyRobotSlam(RobotAbstract):
 
     def control(self):
         """
-        Main control function executed at each time step
+        Fonction principale de contrôle exécutée à chaque pas de temps
         """
         return self.control_tp2()
 
     def control_tp1(self):
         """
-        Control function for TP1
-        Control funtion with minimal random motion
+        Fonction de contrôle pour le TP1
+        Fonction de contrôle avec un mouvement aléatoire minimal
         """
         self.tiny_slam.compute()
 
-        # Compute new command speed to perform obstacle avoidance
+        # Calculer une nouvelle commande de vitesse pour éviter les obstacles
         command = reactive_obst_avoid(self.lidar(), self.display_counter)
 
         if command["rotation"] > 0 and self.display_counter == 0:
@@ -397,18 +396,17 @@ class MyRobotSlam(RobotAbstract):
         elif command["rotation"] > 0 and self.display_counter != 0:
             self.display_counter -= 1
 
-
         return command
 
     def control_tp2(self):
         """
-        Control function for TP2
-        Main control function with full SLAM, random exploration and path planning
+        Fonction de contrôle pour le TP2
+        Fonction principale avec SLAM complet, exploration aléatoire et planification de chemin
         """
         pose = self.odometer_values()
         mapped_percentage = self.occupancy_grid.get_mapped_area_percentage()
         
-        # Condição de parada
+        # Condition d'arrêt
         if mapped_percentage >= 46 and self.current_goal_index+1 >= len(self.fixed_waypoints):
             if self.need_to_save_map:
                 self.occupancy_grid.save("map")
@@ -418,43 +416,43 @@ class MyRobotSlam(RobotAbstract):
 
         if self.exploration_mode:
 
-            # Obter waypoint atual garantindo que está dentro dos limites
+            # Obtenir le waypoint actuel en s'assurant qu'il est dans les limites
             current_goal = self.fixed_waypoints[min(self.current_goal_index, len(self.fixed_waypoints)-1)]
 
             is_stuck = self.is_robot_stuck(pose)
             
-            # Atualizar goal se necessário
+            # Mettre à jour le goal si nécessaire
             dist_to_goal = np.linalg.norm(pose[:2] - current_goal[:2])
             if dist_to_goal < self.goal_reached_threshold and self.current_goal_index < len(self.fixed_waypoints)-1:
                 self.current_goal_index += 1
                 current_goal = self.fixed_waypoints[self.current_goal_index]
-                print(f"Alcançado waypoint {self.current_goal_index}, indo para próximo")
+                print(f"Waypoint {self.current_goal_index} atteint, passage au suivant")
 
-            # Localização
+            # Localisation
             current_score = self.tiny_slam.localise(self.lidar(), pose)
             self.score_history.append(current_score)
             if len(self.score_history) > self.max_history:
                 self.score_history.pop(0)
 
-            # Atualização do mapa (somente se condições forem favoráveis)
+            # Mise à jour de la carte (seulement si les conditions sont favorables)
             if self.should_update_map(pose, current_score):
                 self.corrected_pose = self.tiny_slam.get_corrected_pose(pose)
                 self.tiny_slam.update_map(self.lidar(), self.corrected_pose)
                 self.last_pose_for_map_update = pose.copy()
             
-            # Detecção de stuck
+            # Détection de blocage
             if is_stuck:
-                print("Robô preso! Executando manobra de recuperação...")
+                print("Robot bloqué ! Exécution d'une manœuvre de récupération...")
                 command = potential_field_control(self.lidar(), pose, current_goal, isStuck=True)
             else:
                 command = potential_field_control(self.lidar(), pose, current_goal)
         
-        # Phase 3: Plan and follow path to final_goal
+        # Phase 3 : Planifier et suivre le chemin vers le goal final
         if not self.exploration_mode and not self.reached_final_goal and not self.path_following:
-            print("Exploration complete! Planning path to final goal (-700, -200, 0)")
+            print("Exploration terminée ! Planification du chemin vers le goal final (-700, -200, 0)")
             self.path = self.planner.plan(pose, self.final_goal)
             if not self.path:
-                print("No path found to final goal! Continuing exploration...")
+                print("Aucun chemin trouvé vers le goal final ! Reprise de l'exploration...")
                 self.exploration_mode = True
                 self.iteration_count -= 1
                 current_goal = self.exploration_mode(pose)
@@ -462,26 +460,26 @@ class MyRobotSlam(RobotAbstract):
                 self.occupancy_grid.display_cv(pose, current_goal)
                 return command
             self.path_following = True
-            print(f"Path planned to final goal with {len(self.path)} waypoints")
+            print(f"Chemin planifié vers le goal final avec {len(self.path)} waypoints")
             traj_array = np.array([pose[:2] for pose in self.path]).T
             self.occupancy_grid.display_cv(pose, self.final_goal, traj=traj_array)
             return self.follow_path(pose)
 
-        # Phase 4: Check if final_goal reached and plan path to origin
+        # Phase 4 : Vérifier si le goal final est atteint et planifier le retour à l'origine
         if self.path_following and not self.reached_final_goal:
             dist_to_final = np.linalg.norm(pose[:2] - self.final_goal[:2])
             if dist_to_final < self.goal_reached_threshold or not self.path:
-                print("Reached final goal! Planning path to origin (0, 0, 0)")
+                print("Goal final atteint ! Planification du retour à l'origine (0, 0, 0)")
                 self.reached_final_goal = True
                 self.path_following = False
                 self.path = self.planner.plan(pose, self.return_goal)
                 if not self.path:
-                    print("No path found to origin! Stopping robot.")
+                    print("Aucun chemin trouvé vers l'origine ! Arrêt du robot.")
                     self.occupancy_grid.save("final_map")
                     return {"forward": 0, "rotation": 0}
-                print(f"Path planned to origin with {len(self.path)} waypoints")
+                print(f"Chemin planifié vers l'origine avec {len(self.path)} waypoints")
                 traj_array = np.array([pose[:2] for pose in self.path]).T
-                if traj_array.shape[0] == 2:  # Ensure valid 2D array
+                if traj_array.shape[0] == 2:  # Vérifier que c'est bien un tableau 2D
                     self.occupancy_grid.display_cv(pose, self.return_goal, traj=traj_array)
                 else:
                     self.occupancy_grid.display_cv(pose, self.return_goal)
@@ -489,7 +487,7 @@ class MyRobotSlam(RobotAbstract):
             command = self.follow_path(pose)
             if self.path and len(self.path) > 0:
                 traj_array = np.array([pose[:2] for pose in self.path]).T
-                if traj_array.shape[0] == 2:  # Ensure valid 2D array
+                if traj_array.shape[0] == 2:
                     self.occupancy_grid.display_cv(pose, self.final_goal, traj=traj_array)
                 else:
                     self.occupancy_grid.display_cv(pose, self.final_goal)
@@ -497,11 +495,11 @@ class MyRobotSlam(RobotAbstract):
                 self.occupancy_grid.display_cv(pose, self.final_goal)
             return command
 
-        # Phase 5: Follow path to origin
+        # Phase 5 : Suivre le chemin vers l'origine
         if self.reached_final_goal:
             dist_to_origin = np.linalg.norm(pose[:2] - self.return_goal[:2])
             if dist_to_origin < self.goal_reached_threshold:
-                print("Reached origin! Stopping robot.")
+                print("Origine atteinte ! Arrêt du robot.")
                 self.occupancy_grid.save("final_map")
                 return {"forward": 0, "rotation": 0}
             if not self.path_following:
@@ -509,7 +507,7 @@ class MyRobotSlam(RobotAbstract):
             command = self.follow_path(pose)
             if self.path and len(self.path) > 0:
                 traj_array = np.array([pose[:2] for pose in self.path]).T
-                if traj_array.shape[0] == 2:  # Ensure valid 2D array
+                if traj_array.shape[0] == 2:
                     self.occupancy_grid.display_cv(pose, self.return_goal, traj=traj_array)
                 else:
                     self.occupancy_grid.display_cv(pose, self.return_goal)
@@ -517,12 +515,12 @@ class MyRobotSlam(RobotAbstract):
                 self.occupancy_grid.display_cv(pose, self.return_goal)
             return command
 
-        # Exibir mapa e waypoint atual
+        # Afficher la carte et le waypoint actuel
         self.occupancy_grid.display_cv(pose, current_goal)
 
-        # Feedback periódico
+        # Feedback périodique
         if self.display_counter <= 0:
-            print(f"Mapeado: {mapped_percentage:.1f}% | Waypoint {self.current_goal_index+1}/{len(self.fixed_waypoints)}")
+            print(f"Cartographié : {mapped_percentage:.1f}% | Waypoint {self.current_goal_index+1}/{len(self.fixed_waypoints)}")
             self.display_counter = 30
         else:
             self.display_counter -= 1

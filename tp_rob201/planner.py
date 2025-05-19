@@ -1,35 +1,34 @@
 """
-Planner class
-Implementation of A*
+Classe Planner
+Implémentation de l'algorithme A*
 """
 
 import numpy as np
 import heapq
 from scipy.ndimage import binary_dilation
 
-
 from occupancy_grid import OccupancyGrid
 
 class Planner:
-    """Simple occupancy grid Planner"""
+    """Planificateur simple basé sur une grille d'occupation"""
 
     def __init__(self, occupancy_grid: OccupancyGrid):
         self.grid = occupancy_grid
-        self.FREE_CELL = 0.8  # Increased to avoid cells near walls
+        self.FREE_CELL = 0.8  # Augmenté pour éviter les cellules proches des murs
 
-        # Create a dilated occupancy map
+        # Création d'une carte d'occupation dilatée
         self.dilated_map = np.copy(self.grid.occupancy_map)
-        walls = self.dilated_map > 45  # Threshold for walls
+        walls = self.dilated_map > 45  # Seuil pour détecter les murs
         walls_dilation = binary_dilation(walls, iterations=12)
-        self.dilated_map[walls_dilation] = 50  # Set dilated areas to high occupancy
+        self.dilated_map[walls_dilation] = 50  # Les zones dilatées ont une forte occupation
 
-        # Origin of the odom frame in the map frame
+        # Origine du repère odom dans le repère de la carte
         self.odom_pose_ref = np.array([0, 0, 0])
 
     def get_neighbors(self, current_cell):
         """
-        Return the 8 neighboring cells of the current cell that are free
-        current_cell: tuple (x, y) of map coordinates
+        Retourne les 8 cellules voisines de la cellule actuelle qui sont libres
+        current_cell : tuple (x, y) en coordonnées de la carte
         """
         x, y = current_cell
         neighbors = []
@@ -42,15 +41,15 @@ class Planner:
             nx, ny = x + dx, y + dy
             if (0 <= nx < self.grid.x_max_map and 
                 0 <= ny < self.grid.y_max_map and
-                self.grid.occupancy_map[nx, ny] < 0.5):  # Free cell threshold
+                self.grid.occupancy_map[nx, ny] < 0.5):  # Seuil pour cellule libre
                 neighbors.append((nx, ny))
 
         return neighbors
 
     def heuristic(self, cell1, cell2):
         """
-        Compute Euclidean distance between two cells
-        cell1, cell2: tuples (x, y) of map coordinates
+        Calcule la distance euclidienne entre deux cellules
+        cell1, cell2 : tuples (x, y) en coordonnées de la carte
         """
         x1, y1 = cell1
         x2, y2 = cell2
@@ -58,8 +57,8 @@ class Planner:
     
     def reconstruct_path(self, came_from, current):
         """
-        Reconstruct path from came_from dictionary
-        Returns list of poses in world coordinates
+        Reconstruit le chemin à partir du dictionnaire came_from
+        Retourne une liste de poses en coordonnées du monde
         """
         path = []
         while current in came_from:
@@ -68,7 +67,7 @@ class Planner:
         path.append(current)
         path.reverse()
         
-        # Convert map coordinates to world coordinates
+        # Conversion des coordonnées carte vers monde
         world_path = []
         for cell in path:
             x_world, y_world = self.grid.conv_map_to_world(np.array([cell[0]]), np.array([cell[1]]))
@@ -78,23 +77,21 @@ class Planner:
 
     def plan(self, start, goal):
         """
-        Compute a path using A*, recompute plan if start or goal change
-        start : [x, y, theta] nparray, start pose in world coordinates (theta unused)
-        goal : [x, y, theta] nparray, goal pose in world coordinates (theta unused)
+        Calcule un chemin en utilisant A*, recalcule le plan si le départ ou l’arrivée change
+        start : [x, y, theta] nparray, position initiale en coordonnées du monde (theta non utilisé)
+        goal : [x, y, theta] nparray, position cible en coordonnées du monde (theta non utilisé)
         """
-        # TODO for TP5
-
-        # Convert world to map coordinates
+        # Convertir les coordonnées du monde en coordonnées carte
         start_cell = tuple(self.grid.conv_world_to_map(start[0], start[1]))
         goal_cell = tuple(self.grid.conv_world_to_map(goal[0], goal[1]))
 
-        # Check if start or goal are in obstacles
+        # Vérifier si le départ ou l’arrivée sont dans des obstacles
         if (self.dilated_map[start_cell[0], start_cell[1]] >= self.FREE_CELL or
             self.dilated_map[goal_cell[0], goal_cell[1]] >= self.FREE_CELL):
-            print("Start or goal in obstacle (dilated map), cannot plan path!")
+            print("Départ ou arrivée dans un obstacle (carte dilatée), impossible de planifier un chemin !")
             return []
 
-        # Initialize data structures
+        # Initialiser les structures de données
         open_set = []
         heapq.heappush(open_set, (0, start_cell))
         
@@ -107,11 +104,11 @@ class Planner:
 
             if current == goal_cell:
                 path = self.reconstruct_path(came_from, current)
-                print(f"Path planned with {len(path)} waypoints")
+                print(f"Chemin planifié avec {len(path)} points de passage")
                 return path
 
             for neighbor in self.get_neighbors(current):
-                # Distance to neighbor (using Euclidean distance)
+                # Distance vers le voisin (distance euclidienne)
                 tentative_g_score = g_score[current] + self.heuristic(current, neighbor)
 
                 if tentative_g_score < g_score.get(neighbor, np.inf):
@@ -119,14 +116,14 @@ class Planner:
                     g_score[neighbor] = tentative_g_score
                     f_score[neighbor] = tentative_g_score + self.heuristic(neighbor, goal_cell)
                     
-                    # Update or add to open_set
+                    # Mettre à jour ou ajouter au open_set
                     if neighbor not in [item[1] for item in open_set]:
                         heapq.heappush(open_set, (f_score[neighbor], neighbor))
 
-        print("No path found!")
+        print("Aucun chemin trouvé !")
         return []
 
     def explore_frontiers(self):
-        """ Frontier based exploration """
-        goal = np.array([0, 0, 0])  # frontier to reach for exploration
+        """ Exploration basée sur les frontières """
+        goal = np.array([0, 0, 0])  # Frontière à atteindre pour l'exploration
         return goal
