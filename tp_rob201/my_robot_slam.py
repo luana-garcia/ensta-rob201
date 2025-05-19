@@ -79,7 +79,7 @@ class MyRobotSlam(RobotAbstract):
         self.planner = Planner(self.occupancy_grid)
 
         # Paramètres optimisés
-        self.final_goal = np.array([-700,-200,0])  # Goal final
+        self.final_goal = np.array([-800,-300,0])  # Goal final
         self.waypoints = []
         
         self.goal_reached_threshold = 50  # mm
