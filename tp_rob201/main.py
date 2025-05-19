@@ -33,6 +33,6 @@ if __name__ == '__main__':
                            odometer_params=odometer_params)
     my_world = MyWorld(robot=my_robot, use_shaders=use_shaders)
     simulator = Simulator(the_world=my_world,
-                          use_keyboard=False)
+                          use_keyboard=False, filename_video_capture="mapeamento.mp4")
 
     simulator.run()
